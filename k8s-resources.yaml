@@ -1,0 +1,127 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: home-expert
+    kind: python
+    owner: equal-experts
+  name: home-expert
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: home-expert
+    kind: python
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: home-expert
+    kind: python
+    owner: equal-experts
+  name: home-expert
+spec:
+  progressDeadlineSeconds: 300
+  selector:
+    matchLabels:
+      app: home-expert
+      kind: python
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: home-expert
+        kind: python
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - home-expert
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - env:
+        - name: APP_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['app']
+        - name: APP_ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['env']
+        - name: APP_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: sgrzemski/home-expert:0.0.1
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /liveness
+            port: 8080
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+        name: app
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 8080
+          initialDelaySeconds: 15
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: 200m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app: home-expert
+    kind: python
+  name: home-expert
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: home-expert
+      kind: python
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  labels:
+    app: home-expert
+    kind: python
+  name: home-expert
+spec:
+  maxReplicas: 8
+  minReplicas: 2
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: home-expert
+  targetCPUUtilizationPercentage: 75
