@@ -15,6 +15,7 @@ spec:
   selector:
     app: home-expert
     kind: python
+  type: LoadBalancer
 ---
 apiVersion: apps/v1
 kind: Deployment
